@@ -4,6 +4,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const fs = require('fs')
 const csv = require('csv-parser')
 const sharp = require('sharp')
+const { create } = require('domain')
 
 puppeteer.use(StealthPlugin())
 
@@ -18,99 +19,6 @@ async function getPageWithFetch(url) {
   const page = await (await fetch(url)).text()
   return new JSSoup(page)
 }
-
-async function downloadImage(url, category, id) {
-  await delay(2000)
-  const fixedURL = url.replaceAll('&amp;', '&')
-
-  if (fixedURL.includes('player_silhouette.png') || fixedURL.includes('placeholder.svg')) {
-    // skip downloading image
-    return
-  }
-  else {
-    const picture = await (await fetch(fixedURL)).blob()
-    const arrayBuffer = await picture.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    sharp(buffer).png().toFile(`static/images/${category}/${id}.png`, (err, info) => {
-      if (err) console.log(err)
-    })
-  }
-}
-
-async function getTeamImage(browserInfo, url) {
-  await delay(2000)
-  if (url === '6548/?')
-    url = '6548/-'
-
-  const page = await getParsedPage(browserInfo, `https://www.hltv.org/stats/teams/${url}`, ['div', 'context-item'])
-  // const soupPage = new JSSoup(page)
-  const imageURL = page.find('div', {'class': 'context-item'}).find('img').attrs.src
-  if (imageURL === undefined) {
-    console.log('retrying bc image url doesnt exist...')
-    await delay(5000)
-    getTeamImage(browserInfo, url)
-  }
-  else {
-    const id = url.split('/')[0]
-
-    downloadImage(imageURL.charAt(0) === '/' ? `https://www.hltv.org${imageURL}` : imageURL, 'team', id)
-  }
-}
-
-async function createPage(browser) {
-  const browserPage = await browser.newPage()
-
-  await browserPage.setRequestInterception(true)
-
-  browserPage.on('request', async request => {
-    if (request.resourceType() === 'fetch' || request.resourceType() === 'image' || request.resourceType() === 'media' || request.resourceType() === 'font' || request.resourceType() === 'websocket' || request.resourceType() === 'manifest' || request.resourceType() === 'fetch' || request.resourceType() === 'other' || (request.resourceType() === 'document' && !request.url().includes('hltv')) || (request.resourceType() === 'script' && !request.url().includes('hltv'))) {
-      request.abort()
-    } else {
-      request.continue()
-    }
-  })
-
-  return browserPage
-}
-
-async function loadBrowser() {
-  const browser = await puppeteer.launch({
-    headless: false,
-    args: ['--disable-dev-shm-usage'],
-    executablePath: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome' // UPDATE THIS TO YOUR CHROME PATH
-  })
-
-  const browserPage = await createPage(browser)
-
-  return { browser, browserPage }
-}
-
-async function getParsedPage(browserInfo, url, findElement, loadAllPlayers=false) {
-  return new Promise(async function (resolve, reject) {
-    let timeout;
-    try {
-      let timeoutPromise = new Promise((resolve, reject) => {
-          timeout = setTimeout(() => {
-            clearTimeout(timeout)
-            console.log("Function took longer than 120 seconds. Recalling...")
-            reject(new Error("Timeout reached"))
-          }, 120000);
-      })
-
-      const page = await Promise.race([getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers), timeoutPromise])
-
-      clearTimeout(timeout)
-      resolve(page)
-    }
-    catch (error) {
-      console.error("get parsed page error:", error)
-      clearTimeout(timeout)
-      resolve(getParsedPage(browserInfo, url, findElement, loadAllPlayers))
-    }
-  })
-}
-
 
 async function getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers=false) {
   const { browser, browserPage } = browserInfo
@@ -208,6 +116,169 @@ async function getParsedPage(browserInfo, url, findElement, loadAllPlayers=false
       resolve(getParsedPage(browserInfo, url, findElement, loadAllPlayers))
     }
   })
+}
+
+async function getParsedPageImageHelper(browserInfo, url) {
+  let { browser, browserPage } = browserInfo
+  return new Promise(async function (resolve, reject) {
+    console.log(new Date().toLocaleTimeString() + ' - getting page for image', url)
+
+    try {
+      // console.log(new Date().toLocaleTimeString() + ' - go to page', url)
+      await browserPage.close()
+      browserInfo.browserPage = await createPageLoadImage(browser)
+      browserPage = browserInfo.browserPage
+
+      await Promise.race([
+        browserPage.goto(url, { waitUntil: 'domcontentloaded' }),
+        new Promise(resolve => setTimeout(resolve, 5000))
+      ]);
+      // console.log(new Date().toLocaleTimeString() + ' - docloaded', url)
+      // await browserPage.waitForSelector('.' + findElement[1])
+      // console.log(new Date().toLocaleTimeString() + ' - loaded elm', url)
+      // const fullPage = await browserPage.content()
+
+      let timeout;
+      let timeoutPromise = new Promise((resolve, reject) => {
+        timeout = setTimeout(async () => {
+          clearTimeout(timeout)
+          console.log("Function took longer than 5 seconds. Recalling...")
+          browserPage.close()
+          browserInfo.browserPage = await createPageLoadImage(browser)
+          resolve(getParsedPageImageHelper(browserInfo, url))
+        }, 10000);
+      })
+
+      const imgHandler = await Promise.race([browserPage.waitForSelector('img, svg', { state: 'attached' }), timeoutPromise])
+      clearTimeout(timeout)
+
+      if (imgHandler) {
+        resolve(imgHandler)
+      }
+      else {
+        console.log('soup did not contain an img, retrying...', url)
+        await delay(5000)
+        resolve(getParsedPageImageHelper(browserInfo, url))
+      }
+    }
+    catch (err) {
+      console.log('failed getting image with error', err)
+      console.log('retrying...', url)
+      await delay(3000)
+      resolve(getParsedPageImageHelper(browserInfo, url))
+    }
+  })
+}
+
+async function getParsedPageImage(browserInfo, url) {
+  return new Promise(async function (resolve, reject) {
+    let timeout;
+    try {
+      let timeoutPromise = new Promise((resolve, reject) => {
+          timeout = setTimeout(() => {
+            clearTimeout(timeout)
+            console.log("Function took longer than 60 seconds. Recalling...")
+            reject(new Error("Timeout reached"))
+          }, 60000);
+      })
+
+      const img = await Promise.race([getParsedPageImageHelper(browserInfo, url), timeoutPromise])
+
+      clearTimeout(timeout)
+      resolve(img)
+    }
+    catch (error) {
+      console.error("get parsed page error:", error)
+      clearTimeout(timeout)
+      resolve(getParsedPageImage(browserInfo, url))
+    }
+  })
+}
+
+async function downloadImage(browserInfo, url, category, id) {
+  await delay(2000)
+  const fixedURL = url.replaceAll('&amp;', '&')
+
+  if (fixedURL.includes('player_silhouette.png') || fixedURL.includes('placeholder.svg')) {
+    // skip downloading image
+    return
+  }
+  else {
+    const img = await getParsedPageImage(browserInfo, fixedURL)
+
+    await img.screenshot({
+      path: `static/images/${category}/${id}.png`
+    })
+
+    const { browser, browserPage } = browserInfo
+
+    browserPage.close()
+    browserInfo.browserPage = await createPage(browser)
+  }
+}
+
+async function getTeamImage(browserInfo, url) {
+  await delay(2000)
+  if (url === '6548/?')
+    url = '6548/-'
+
+  const page = await getParsedPage(browserInfo, `https://www.hltv.org/stats/teams/${url}`, ['div', 'context-item'])
+  // const soupPage = new JSSoup(page)
+  const imageURL = page.find('div', {'class': 'context-item'}).find('img').attrs.src
+  if (imageURL === undefined) {
+    console.log('retrying bc image url doesnt exist...')
+    await delay(5000)
+    await getTeamImage(browserInfo, url)
+  }
+  else {
+    const id = url.split('/')[0]
+
+    await downloadImage(browserInfo, imageURL.charAt(0) === '/' ? `https://www.hltv.org${imageURL}` : imageURL, 'team', id)
+  }
+}
+
+async function createPageLoadImage(browser) {
+  const browserPage = await browser.newPage()
+
+  await browserPage.setRequestInterception(true)
+
+  browserPage.on('request', async request => {
+    if (request.resourceType() === 'fetch' || request.resourceType() === 'media' || request.resourceType() === 'font' || request.resourceType() === 'websocket' || request.resourceType() === 'manifest' || request.resourceType() === 'fetch' || request.resourceType() === 'other' || (request.resourceType() === 'document' && !request.url().includes('hltv')) || (request.resourceType() === 'script' && !request.url().includes('hltv'))) {
+      request.abort()
+    } else {
+      request.continue()
+    }
+  })
+
+  return browserPage
+}
+
+async function createPage(browser) {
+  const browserPage = await browser.newPage()
+
+  await browserPage.setRequestInterception(true)
+
+  browserPage.on('request', async request => {
+    if (request.resourceType() === 'fetch' || request.resourceType() === 'media' || request.resourceType() === 'image' || request.resourceType() === 'font' || request.resourceType() === 'websocket' || request.resourceType() === 'manifest' || request.resourceType() === 'fetch' || request.resourceType() === 'other' || (request.resourceType() === 'document' && !request.url().includes('hltv')) || (request.resourceType() === 'script' && !request.url().includes('hltv'))) {
+      request.abort()
+    } else {
+      request.continue()
+    }
+  })
+
+  return browserPage
+}
+
+async function loadBrowser() {
+  const browser = await puppeteer.launch({
+    headless: false,
+    args: ['--disable-dev-shm-usage'],
+    executablePath: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome' // UPDATE THIS TO YOUR CHROME PATH
+  })
+
+  const browserPage = await createPage(browser)
+
+  return { browser, browserPage }
 }
 
 async function readPlayerData(playerData, idToName) {
@@ -370,7 +441,7 @@ async function getInitPlayerData(browserInfo) {
   return { idToName, playerData, playerTableData, countryImages }
 }
 
-async function downloadCountryFlags(countryImages) {
+async function downloadCountryFlags(browserInfo, countryImages) {
   console.log(new Date().toLocaleTimeString() + ' - downloading country flags...')
   for (const [country, url] of Object.entries(countryImages)) {
     if (fs.existsSync(`static/images/country/${country}.png`)) {
@@ -378,13 +449,15 @@ async function downloadCountryFlags(countryImages) {
     }
     else {
       console.log(new Date().toLocaleTimeString() + ' - downloading ' + country)
-      await downloadImage(url, 'country', country)
+      await downloadImage(browserInfo, url, 'country', country)
     }
   }
 }
 
 // function sometimes is wrong if no new matches but has an upcoming match, but overestimate is fine here
-async function getLastMatchForPlayer(playerID) {
+async function getLastMatchForPlayer(browserInfo, playerID) {
+  // consider needing to change to use this parse method when this url gets blocked lol
+  // const profileMatchesPage = await getParsedPage(browserInfo, 'https://www.hltv.org/player/' + playerID + '/a#tab-matchesBox', ['div', 'playerProfile'])
   const profileMatchesPage = await getPageWithFetch('https://www.hltv.org/player/' + playerID + '/a#tab-matchesBox')
 
   let lastMatch = new Date()
@@ -477,11 +550,11 @@ async function updateStatsForPlayer(browserInfo, playerId, playerName, lastUpdat
 
     if (statsPage.find('img', {'class': 'player-summary-stat-box-left-bodyshot'}) !== undefined) {
       const imageURL = statsPage.find('img', {'class': 'player-summary-stat-box-left-bodyshot'}).attrs.src
-      await downloadImage(imageURL.charAt(0) === '/' ? `https://www.hltv.org${imageURL}` : imageURL, 'player', playerId)
+      await downloadImage(browserInfo, imageURL.charAt(0) === '/' ? `https://www.hltv.org${imageURL}` : imageURL, 'player', playerId)
     }
     else if (statsPage.find('img', {'class': 'summarySquare'}) !== undefined) {
       const imageURL = statsPage.find('img', {'class': 'summarySquare'}).attrs.src
-      await downloadImage(imageURL.charAt(0) === '/' ? `https://www.hltv.org${imageURL}` : imageURL, 'player', playerId)
+      await downloadImage(browserInfo, imageURL.charAt(0) === '/' ? `https://www.hltv.org${imageURL}` : imageURL, 'player', playerId)
     }
 
     playerData[playerId].fullName = statsPage.find('div', {'class': 'player-summary-stat-box-left-player-name'}).text
@@ -656,4 +729,4 @@ async function updateStatsForPlayer(browserInfo, playerId, playerName, lastUpdat
   }
 }
 
-module.exports = { delay, getParsedPage, getPageWithFetch, loadBrowser, readPlayerData, writePlayerData, getTeamImage, downloadImage, getInitPlayerData, downloadCountryFlags, getLastMatchForPlayer, updateStatsForPlayer }
+module.exports = { delay, getParsedPage, loadBrowser, readPlayerData, writePlayerData, getTeamImage, downloadImage, getInitPlayerData, downloadCountryFlags, getLastMatchForPlayer, updateStatsForPlayer }

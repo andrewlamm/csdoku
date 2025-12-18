@@ -24,7 +24,7 @@ async function main() {
   try {
     const { idToName, playerData } = await getInitPlayerData(browserInfo)
 
-    await downloadCountryFlags(countryImages)
+    await downloadCountryFlags(browserInfo, countryImages)
 
     const lastUpdated = await readPlayerData(playerData, idToName)
     const topTeams = await getTopTeams()

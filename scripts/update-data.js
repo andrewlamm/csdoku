@@ -9,7 +9,7 @@ async function main(skip) {
   try {
     const { idToName, playerData, playerTableData, countryImages } = await getInitPlayerData(browserInfo)
 
-    await downloadCountryFlags(countryImages)
+    await downloadCountryFlags(browserInfo, countryImages)
 
     // now read csv file
     const lastUpdated = await readPlayerData(playerData, idToName)
@@ -26,7 +26,7 @@ async function main(skip) {
       if (playerData[id] === undefined || playerTableData[id] === undefined || playerTableData[id].maps !== playerData[id].maps || playerTableData[id].rounds !== playerData[id].rounds || playerTableData[id].KDDiff !== playerData[id].KDDiff) {
         console.log(new Date().toLocaleTimeString() + ' - getting stats for ' + name)
 
-        const lastMatch = getLastMatchForPlayer(id)
+        const lastMatch = await getLastMatchForPlayer(browserInfo, id)
 
         if (lastMatch < updateDate && playerData[id].rounds !== "N/A") {
           // no need to update

@@ -10,7 +10,7 @@ async function main() {
   console.log(new Date().toLocaleTimeString() + ' loading initial players...')
   const { idToName, playerData, countryImages } = await getInitPlayerData(browserInfo)
 
-  await downloadCountryFlags(countryImages)
+  await downloadCountryFlags(browserInfo, countryImages)
 
   try {
     // loading all player data
