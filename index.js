@@ -273,7 +273,9 @@ function checkPlayerGrid(playerID, clue1, clue2, teamNameHasID = true) {
 
   if (clue1Type === 'team') {
     const team = teamNameHasID ? clue1Val.substring(clue1Val.indexOf('/')+1) : clue1Val
-    if (playerData[playerID]['teams'].has(team)) {
+    if (playerData[playerID]['teams'].has(team) ||
+        playerData[playerID]['teams'].has(team.toUpperCase()) ||
+        playerData[playerID]['teams'].has(team.toLowerCase())) {
       clue1Check = true
     }
   }
@@ -316,7 +318,9 @@ function checkPlayerGrid(playerID, clue1, clue2, teamNameHasID = true) {
 
   if (clue2Type === 'team') {
     const team = teamNameHasID ? clue2Val.substring(clue2Val.indexOf('/')+1) : clue2Val
-    if (playerData[playerID]['teams'].has(team)) {
+    if (playerData[playerID]['teams'].has(team) ||
+        playerData[playerID]['teams'].has(team.toUpperCase()) ||
+        playerData[playerID]['teams'].has(team.toLowerCase())) {
       clue2Check = true
     }
   }
