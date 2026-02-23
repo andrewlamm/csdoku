@@ -22,7 +22,7 @@ async function main() {
   const browserInfo = await loadBrowser()
 
   try {
-    const { idToName, playerData } = await getInitPlayerData(browserInfo)
+    const { idToName, playerData, playerTableData, countryImages } = await getInitPlayerData(browserInfo)
 
     await downloadCountryFlags(browserInfo, countryImages)
 

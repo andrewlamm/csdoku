@@ -29,7 +29,7 @@ async function getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers
       // console.log(new Date().toLocaleTimeString() + ' - go to page', url)
       await Promise.race([
         browserPage.goto(url, { waitUntil: 'domcontentloaded' }),
-        new Promise(resolve => setTimeout(resolve, 5000))
+        new Promise(resolve => setTimeout(resolve, 15000))
       ]);
       // console.log(new Date().toLocaleTimeString() + ' - docloaded', url)
       // await browserPage.waitForSelector('.' + findElement[1])
@@ -40,7 +40,7 @@ async function getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers
       let timeoutPromise = new Promise((resolve, reject) => {
         timeout = setTimeout(async () => {
           clearTimeout(timeout)
-          console.log("Function took longer than 5 seconds. Recalling...")
+          console.log("Function took longer than 15 seconds. Recalling...")
           browserPage.close()
           browserInfo.browserPage = await createPage(browser)
           resolve(getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers))
