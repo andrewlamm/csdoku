@@ -1717,6 +1717,10 @@ async function generatePuzzle(minPlayers, teamList, initTeamList) {
   }
 
   while (statsTries < 30) {
+    if (statsTries % 2 === 0) {
+      await new Promise(r => setImmediate(r));
+    }
+
     if (topRowTeamsCount === 1) {
       puzzle[1] = generateBetterStat(minPlayers, colValidPlayers)
     }
@@ -1755,7 +1759,7 @@ async function generatePuzzleHelper(minPlayers, teamList, initTeamList) {
   // console.log(new Date().toTimeString(), 'generating puzzle', minPlayers)
   const puzzle = await generatePuzzle(minPlayers, teamList, initTeamList)
   if (puzzle === undefined) {
-    await delay(100)
+    await new Promise(r => setImmediate(r));
     return await generatePuzzleHelper(minPlayers, teamList, initTeamList)
   }
   // console.log(new Date().toTimeString(), 'generated puzzle', minPlayers)
