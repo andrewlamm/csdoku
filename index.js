@@ -1757,10 +1757,10 @@ async function generatePuzzle(minPlayers, teamList, initTeamList) {
 
 async function generatePuzzleHelper(minPlayers, teamList, initTeamList) {
   // console.log(new Date().toTimeString(), 'generating puzzle', minPlayers)
-  const puzzle = await generatePuzzle(minPlayers, teamList, initTeamList)
-  if (puzzle === undefined) {
+  let puzzle = await generatePuzzle(minPlayers, teamList, initTeamList)
+  while (puzzle === undefined) {
     await new Promise(r => setImmediate(r));
-    return await generatePuzzleHelper(minPlayers, teamList, initTeamList)
+    puzzle = await generatePuzzle(minPlayers, teamList, initTeamList)
   }
   // console.log(new Date().toTimeString(), 'generated puzzle', minPlayers)
   return puzzle

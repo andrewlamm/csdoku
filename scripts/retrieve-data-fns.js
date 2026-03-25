@@ -182,6 +182,7 @@ async function getParsedPageImage(browserInfo, url) {
           }, 60000);
       })
 
+      // TODO: remove bg color?
       const img = await Promise.race([getParsedPageImageHelper(browserInfo, url), timeoutPromise])
 
       clearTimeout(timeout)
