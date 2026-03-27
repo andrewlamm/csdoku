@@ -1230,9 +1230,14 @@ function preprocessData(playerData) {
   */
 }
 
-async function checkValidPuzzleHelper(puzzle, currBoard, currSpot, playerSet, infPossiblePlayers, minPlayers) {
+async function checkValidPuzzleHelper(puzzle, currBoard, currSpot, playerSet, infPossiblePlayers, minPlayers, tracker) {
   if (currSpot >= 9)
     return true
+
+  tracker.iterations++;
+  if (tracker.iterations % 15 == 0) {
+    await new Promise(r => setImmediate(r))
+  }
 
   const cluePos = PUZZLES_GRID[currSpot]
   const clue1 = puzzle[cluePos[0]]
@@ -1249,17 +1254,15 @@ async function checkValidPuzzleHelper(puzzle, currBoard, currSpot, playerSet, in
       continue
     }
 
-    playerSetDuplicate = new Set(playerSet)
-    currBoardDuplicate = [...currBoard]
-    playerSetDuplicate.add(playerID)
-    currBoardDuplicate[currSpot] = playerID
+    playerSet.add(playerID)
+    currBoard[currSpot] = playerID
 
-    await delay(1)
-    const ans = await checkValidPuzzleHelper(puzzle, currBoardDuplicate, currSpot + 1, playerSetDuplicate, infPossiblePlayers, minPlayers)
-    // await delay(1)
-    if (ans) {
-      return true
-    }
+    const ans = await checkValidPuzzleHelper(puzzle, currBoard, currSpot + 1, playerSet, infPossiblePlayers, minPlayers, tracker)
+
+    if (ans) return true
+
+    playerSet.delete(playerID)
+    currBoard[currSpot] = undefined
   }
 
   return false
@@ -1275,7 +1278,8 @@ async function checkValidPuzzle(puzzle, minPlayers) {
     }
   }
 
-  const poss = await checkValidPuzzleHelper(puzzle, [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined], 0, new Set(), infPossiblePlayers, minPlayers)
+  const tracker = { iterations: 0 }
+  const poss = await checkValidPuzzleHelper(puzzle, [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined], 0, new Set(), infPossiblePlayers, minPlayers, tracker)
   return poss
 }
 
