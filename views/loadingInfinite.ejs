@@ -23,11 +23,27 @@
     </div>
     <script>
       async function generatePuzzle() {
-        const res = await (await fetch('/generateInfinite', {
-          method: 'POST',
-        })).json()
+        try {
+          const response = await fetch('/generateInfinite', {
+            method: 'POST',
+          })
 
-        window.location.href = `/infinite?id=${res.id}`
+          if (!response.ok) {
+            setTimeout(generatePuzzle, 600)
+            return
+          }
+
+          const res = await response.json()
+          if (res.id === undefined) {
+            setTimeout(generatePuzzle, 600)
+            return
+          }
+
+          window.location.href = `/infinite?id=${res.id}`
+        }
+        catch (err) {
+          setTimeout(generatePuzzle, 600)
+        }
       }
 
       generatePuzzle()

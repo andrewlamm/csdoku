@@ -1201,6 +1201,7 @@ function generatePossiblePlayers(puzzle, teamNameHasID = true) {
 // code translated from Python (generate-puzzles.py) into JS
 const countrySet = new Set()
 const teamPlayers = {}
+const partnerTeamsByList = new WeakMap()
 
 function preprocessData(playerData) {
   for (const [id, player] of Object.entries(playerData)) {
@@ -1392,10 +1393,19 @@ function createBetterTeamList(teamList) {
 
   // console.log(betterTeamList)
 
+  partnerTeamsByList.set(teamList, partnerTeamCount)
+
   return betterTeamList
 }
 
 function findPartnerTeams(team, minPlayers, teamList) {
+  const cachedPartners = partnerTeamsByList.get(teamList)
+  if (cachedPartners !== undefined &&
+      cachedPartners[team] !== undefined &&
+      cachedPartners[team][minPlayers] !== undefined) {
+    return new Set(cachedPartners[team][minPlayers])
+  }
+
   const partnerTeams = new Set()
   for (let i = 0; i < teamList.length; i++) {
     const teamName = teamList[i].substring(teamList[i].indexOf('/')+1)
@@ -1761,11 +1771,23 @@ async function generatePuzzle(minPlayers, teamList, initTeamList) {
 
 async function generatePuzzleHelper(minPlayers, teamList, initTeamList) {
   // console.log(new Date().toTimeString(), 'generating puzzle', minPlayers)
-  let puzzle = await generatePuzzle(minPlayers, teamList, initTeamList)
-  while (puzzle === undefined) {
-    await new Promise(r => setImmediate(r));
+  const MAX_GENERATE_ATTEMPTS = 120
+
+  let puzzle = undefined
+  for (let tries = 0; tries < MAX_GENERATE_ATTEMPTS; tries++) {
     puzzle = await generatePuzzle(minPlayers, teamList, initTeamList)
+    if (puzzle !== undefined) {
+      break
+    }
+
+    if (tries % 10 === 9) {
+      await delay(5)
+    }
+    else {
+      await new Promise(r => setImmediate(r))
+    }
   }
+
   // console.log(new Date().toTimeString(), 'generated puzzle', minPlayers)
   return puzzle
 }
@@ -1803,6 +1825,10 @@ async function generatePuzzleMiddleware(req, res, next) {
 }
 
 async function saveInfinitePuzzle(req, res, next) {
+  if (res.locals.puzzle === undefined) {
+    return res.status(503).send({ error: 'Puzzle generation timeout. Please try again.' })
+  }
+
   res.locals.puzzleID = uuidv4()
   const doc = {
     _id: res.locals.puzzleID,
