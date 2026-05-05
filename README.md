@@ -33,7 +33,9 @@ You can also just run
 1. `node scripts/find-top-teams.js`
 This hopefully should be faster as it just looks at the new matches since the last update and updates the corresponding players.
 
-When updating the `playerData.csv` file, run
+When updating the `playerData.csv` file, you must first open chrome with a remote debugging port, like so:
+`/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-debug`
+Then, run
 1. `node scripts/update-data.js`
 2. `node scripts/find-top-teams.js`
 3. `node scripts/retrieve-remaining-players.js`

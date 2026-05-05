@@ -21,33 +21,33 @@ async function getPageWithFetch(url) {
 }
 
 async function getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers=false) {
-  const { browser, browserPage } = browserInfo
+  const { browser, mainBrowserPage, imageBrowserPage } = browserInfo
   return new Promise(async function (resolve, reject) {
     console.log(new Date().toLocaleTimeString() + ' - getting page', url)
 
     try {
       // console.log(new Date().toLocaleTimeString() + ' - go to page', url)
       await Promise.race([
-        browserPage.goto(url, { waitUntil: 'domcontentloaded' }),
+        mainBrowserPage.goto(url, { waitUntil: 'domcontentloaded' }),
         new Promise(resolve => setTimeout(resolve, 15000))
       ]);
       // console.log(new Date().toLocaleTimeString() + ' - docloaded', url)
-      // await browserPage.waitForSelector('.' + findElement[1])
+      // await mainBrowserPage.waitForSelector('.' + findElement[1])
       // console.log(new Date().toLocaleTimeString() + ' - loaded elm', url)
-      // const fullPage = await browserPage.content()
+      // const fullPage = await mainBrowserPage.content()
 
       let timeout;
       let timeoutPromise = new Promise((resolve, reject) => {
         timeout = setTimeout(async () => {
           clearTimeout(timeout)
           console.log("Function took longer than 15 seconds. Recalling...")
-          browserPage.close()
-          browserInfo.browserPage = await createPage(browser)
-          resolve(getParsedPageHelper(browserInfo, url, findElement, loadAllPlayers))
+          mainBrowserPage.close()
+          browserInfo.mainBrowserPage = await createPage(browser)
+          resolve(getParsedPageHelper(mainBrowserPage, url, findElement, loadAllPlayers))
         }, 10000);
       })
 
-      const fullPage = await Promise.race([browserPage.content(), timeoutPromise])
+      const fullPage = await Promise.race([mainBrowserPage.content(), timeoutPromise])
       clearTimeout(timeout)
 
       // console.log(new Date().toLocaleTimeString() + ' - got content', url)
@@ -119,37 +119,33 @@ async function getParsedPage(browserInfo, url, findElement, loadAllPlayers=false
 }
 
 async function getParsedPageImageHelper(browserInfo, url) {
-  let { browser, browserPage } = browserInfo
+  let { browser, mainBrowserPage, imageBrowserPage } = browserInfo
   return new Promise(async function (resolve, reject) {
     console.log(new Date().toLocaleTimeString() + ' - getting page for image', url)
 
     try {
       // console.log(new Date().toLocaleTimeString() + ' - go to page', url)
-      await browserPage.close()
-      browserInfo.browserPage = await createPageLoadImage(browser)
-      browserPage = browserInfo.browserPage
-
       await Promise.race([
-        browserPage.goto(url, { waitUntil: 'domcontentloaded' }),
+        imageBrowserPage.goto(url, { waitUntil: 'domcontentloaded' }),
         new Promise(resolve => setTimeout(resolve, 5000))
       ]);
       // console.log(new Date().toLocaleTimeString() + ' - docloaded', url)
-      // await browserPage.waitForSelector('.' + findElement[1])
+      // await imageBrowserPage.waitForSelector('.' + findElement[1])
       // console.log(new Date().toLocaleTimeString() + ' - loaded elm', url)
-      // const fullPage = await browserPage.content()
+      // const fullPage = await imageBrowserPage.content()
 
       let timeout;
       let timeoutPromise = new Promise((resolve, reject) => {
         timeout = setTimeout(async () => {
           clearTimeout(timeout)
           console.log("Function took longer than 5 seconds. Recalling...")
-          browserPage.close()
-          browserInfo.browserPage = await createPageLoadImage(browser)
+          imageBrowserPage.close()
+          browserInfo.imageBrowserPage = await createPageLoadImage(browser)
           resolve(getParsedPageImageHelper(browserInfo, url))
         }, 10000);
       })
 
-      const imgHandler = await Promise.race([browserPage.waitForSelector('img, svg', { state: 'attached' }), timeoutPromise])
+      const imgHandler = await Promise.race([imageBrowserPage.waitForSelector('img, svg', { state: 'attached' }), timeoutPromise])
       clearTimeout(timeout)
 
       if (imgHandler) {
@@ -208,13 +204,9 @@ async function downloadImage(browserInfo, url, category, id) {
     const img = await getParsedPageImage(browserInfo, fixedURL)
 
     await img.screenshot({
-      path: `static/images/${category}/${id}.png`
+      path: `static/images/${category}/${id}.png`,
+      omitBackground: true
     })
-
-    const { browser, browserPage } = browserInfo
-
-    browserPage.close()
-    browserInfo.browserPage = await createPage(browser)
   }
 }
 
@@ -271,15 +263,20 @@ async function createPage(browser) {
 }
 
 async function loadBrowser() {
-  const browser = await puppeteer.launch({
-    headless: false,
-    args: ['--disable-dev-shm-usage'],
-    executablePath: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome' // UPDATE THIS TO YOUR CHROME PATH
+  // const browser = await puppeteer.launch({
+  //   headless: false,
+  //   args: ['--disable-dev-shm-usage'],
+  //   executablePath: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome' // UPDATE THIS TO YOUR CHROME PATH
+  // })
+
+  const browser = await puppeteer.connect({
+    browserURL: 'http://localhost:9222'
   })
 
-  const browserPage = await createPage(browser)
+  const mainBrowserPage = await createPage(browser)
+  const imageBrowserPage = await createPageLoadImage(browser)
 
-  return { browser, browserPage }
+  return { browser, mainBrowserPage, imageBrowserPage }
 }
 
 async function readPlayerData(playerData, idToName) {
