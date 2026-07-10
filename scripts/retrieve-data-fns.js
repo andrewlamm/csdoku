@@ -270,7 +270,7 @@ async function loadBrowser() {
   // })
 
   const browser = await puppeteer.connect({
-    browserURL: 'http://localhost:9222'
+    browserURL: 'http://127.0.0.1:9222'
   })
 
   const mainBrowserPage = await createPage(browser)
