@@ -2023,6 +2023,8 @@ app.use(function (req, res, next) {
   res.render('404')
 })
 
+let server
+
 /* Start Function */
 async function start() {
   console.log(`${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })} - reading csv...`)
@@ -2044,11 +2046,33 @@ async function start() {
   console.log(`${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })} - creating init team lists`)
   createInitTeams()
 
-  if (process.send) process.send('ready');
-  app.listen(process.env.PORT || 4000, () => console.log(`${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })} - Server is running...`))
+  server = app.listen(process.env.PORT || 4000, () => {
+    console.log(`${new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York" })} - Server is running...`)
+
+    if (process.send) process.send('ready')
+  })
 }
 
-start()
+function shutdown() {
+  console.log("Graceful shutdown started")
 
-// npx @tailwindcss/cli -i .\static\styles.css -o ./static/output.css --watch
+  if (server) {
+    server.close(() => {
+      console.log("HTTP server closed")
+      process.exit(0)
+    });
+  } else {
+    process.exit(0)
+  }
+
+  setTimeout(() => {
+    console.log("Forced shutdown")
+    process.exit(1)
+  }, 10000)
+}
+
+process.on("SIGINT", shutdown)
+process.on("SIGTERM", shutdown)
+
+start()
 // npx @tailwindcss/cli -i static/styles.css -o static/output.css --watch
